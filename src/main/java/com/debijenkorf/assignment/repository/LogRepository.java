@@ -9,12 +9,21 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 
+/**
+ * A repository responsible for the logging table
+ */
 @Repository
 public class LogRepository {
     private LogDBProperties logDBProperties;
 
-    public void log(String level, String message) {
-        String query = "insert into [db_log] (timestamp, level, message) values (?,?,?)";
+    /**
+     * Insert a log message to [db_logs]
+     *
+     * @param level   Log level
+     * @param message Message to log
+     */
+    public void insert(String level, String message) {
+        String query = "insert into [db_logs] (timestamp, level, message) values (?,?,?)";
 
         try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(query)) {
             ps.setLong(1, System.currentTimeMillis());
@@ -30,11 +39,11 @@ public class LogRepository {
         }
     }
 
-    @Autowired
-    public void setLogDBProperties(LogDBProperties logDBProperties) {
-        this.logDBProperties = logDBProperties;
-    }
-
+    /**
+     * Establish Database connection
+     *
+     * @return Database connection
+     */
     public Connection getConnection() {
         String url = String.join(logDBProperties.getEndpoint(), logDBProperties.getName());
 
@@ -45,5 +54,10 @@ public class LogRepository {
         }
 
         return null;
+    }
+
+    @Autowired
+    public void setLogDBProperties(LogDBProperties logDBProperties) {
+        this.logDBProperties = logDBProperties;
     }
 }

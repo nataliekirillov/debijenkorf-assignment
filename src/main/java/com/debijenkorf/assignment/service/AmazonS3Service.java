@@ -17,11 +17,17 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.io.InputStream;
 
+/**
+ * A service responsible for the communication with S3
+ */
 @Service
 public class AmazonS3Service {
     private S3Properties s3Properties;
     private AmazonS3 client;
 
+    /**
+     * Establish the S3 Client connection after the bean has initialized
+     */
     @PostConstruct
     public void postConstruct() {
         AWSCredentials credentials = new BasicAWSCredentials(s3Properties.getAccessKey(), s3Properties.getSecretKey());
@@ -32,11 +38,23 @@ public class AmazonS3Service {
                 .build();
     }
 
-    public InputStream downloadFile(String filename) {
-        S3Object object = client.getObject(s3Properties.getBucket(), filename);
+    /**
+     * Download file from S3
+     *
+     * @param path The file path we want to download
+     * @return InputStream of the file we have downloaded
+     */
+    public InputStream downloadFile(String path) {
+        S3Object object = client.getObject(s3Properties.getBucket(), path);
         return object.getObjectContent();
     }
 
+    /**
+     * Upload file to S3
+     *
+     * @param path The location we want to upload the file to
+     * @param is   InputStream that we want to upload
+     */
     public void uploadFile(String path, InputStream is) {
         try {
             byte[] resultByte = DigestUtils.md5(is);
