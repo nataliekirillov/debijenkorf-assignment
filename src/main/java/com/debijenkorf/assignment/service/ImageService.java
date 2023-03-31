@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 @Service
 public class ImageService {
@@ -19,6 +20,19 @@ public class ImageService {
     private AmazonS3Service s3Service;
 
     public byte[] getImage() {
+        return null;
+    }
+
+    public byte[] getImageFromS3() {
+        InputStream is = s3Service.downloadFile("abcd.jpg");
+        try {
+            return IOUtils.toByteArray(is);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public byte[] getImageFromSource() {
         HttpGet request = new HttpGet(sourceProperties.getRootUrl());
 
         try (CloseableHttpResponse response = httpClient.execute(request)) {

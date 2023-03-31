@@ -13,7 +13,8 @@ public class ImageController {
     @GetMapping(value="hello", produces="image/jpeg")
     @ResponseBody
     public byte[] getImage() {
-        return imageService.getImage();
+        //return imageService.getImageFromSource();
+        return imageService.getImageFromS3();
     }
 
     @Autowired
