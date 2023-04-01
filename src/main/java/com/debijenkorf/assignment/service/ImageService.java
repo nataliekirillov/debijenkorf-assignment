@@ -18,10 +18,19 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.stream.ImageOutputStream;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
+import java.io.OutputStream;
+import java.util.Map;
 
 
 /**
@@ -34,14 +43,14 @@ public class ImageService {
     private S3Service s3Service;
     private SourceProperties sourceProperties;
     private S3DirectoryStrategy directoryStrategy;
-    private List<ImageType> supportedImageTypes;
+    private Map<String, ImageType> imageTypes;
     private final CloseableHttpClient httpClient = HttpClients.createDefault();
 
     @PostConstruct
     public void postConstruct() {
-        this.supportedImageTypes = List.of(
-                new ImageType("Thumbnail", 5, 5, 90, "#FFFFFF", ImageTypeEnum.JPG, ScaleTypeEnum.FILL),
-                new ImageType("Original", 0, 0, 100, "#FFFFFF", ImageTypeEnum.JPG, ScaleTypeEnum.FILL)
+        this.imageTypes = Map.of(
+                "Thumbnail", new ImageType(5, 5, 90, "#FFFFFF", ImageTypeEnum.JPG, ScaleTypeEnum.FILL),
+                "Original", new ImageType(0, 0, 100, "#FFFFFF", ImageTypeEnum.JPG, ScaleTypeEnum.FILL)
         );
     }
 
@@ -66,6 +75,14 @@ public class ImageService {
             return image;
         }
 
+        // attempt to get original image from S3
+        image = getImageFromS3("original", filename);
+        if (image.length != 0) {
+            // fixme
+            //optimize
+            // store
+        }
+
         // didn't find image in source - return error
         image = getImageFromSource(filename);
         if (image.length == 0) {
@@ -73,15 +90,7 @@ public class ImageService {
         }
 
         // found image in source - store it
-        String s3Filepath = directoryStrategy.getDirectoryStrategy(type, filename);
-        try {
-            s3Service.upload(s3Filepath, new ByteArrayInputStream(image));
-        } catch (IOException e) {
-            dbLog.error("Failed to save image to S3");
-            log.error("Failed to save image to S3: {}", e.getMessage());
-            log.debug("Failed to save image to S3", e);
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Failed to store image on S3");
-        }
+        storeImage(type, filename, image);
 
         return getImage(type, filename);
     }
@@ -152,7 +161,37 @@ public class ImageService {
     }
 
     private boolean isTypeSupported(String type) {
-        return supportedImageTypes.stream().anyMatch(x -> x.getName().equalsIgnoreCase(type));
+        return imageTypes.keySet().stream().anyMatch(x -> x.equalsIgnoreCase(type));
+    }
+
+    private void storeImage(String type, String filename, byte[] image){
+        String s3Filepath = directoryStrategy.getDirectoryStrategy(type, filename);
+        try {
+            s3Service.upload(s3Filepath, new ByteArrayInputStream(image));
+        } catch (IOException e) {
+            dbLog.error("Failed to save image to S3");
+            log.error("Failed to save image to S3: {}", e.getMessage());
+            log.debug("Failed to save image to S3", e);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Failed to store image on S3");
+        }
+    }
+
+    private void compressImage(String type, InputStream is) throws IOException {
+        ImageType imageType = imageTypes.get(type);
+        ImageWriter writer = ImageIO.getImageWritersByFormatName(imageType.getType().name()).next();
+        ImageWriteParam param = writer.getDefaultWriteParam();
+        BufferedImage image = ImageIO.read(is);
+
+        File compressedImageFile = new File("compressed_image.jpg");
+        OutputStream os = new FileOutputStream(compressedImageFile);
+        ImageOutputStream ios = ImageIO.createImageOutputStream(os);
+
+        writer.setOutput(ios);
+        param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+        param.setCompressionQuality(imageType.getQuality());
+        writer.write(null, new IIOImage(image, null, null), param);
+
+
     }
 
     @Autowired

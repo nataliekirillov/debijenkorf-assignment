@@ -8,7 +8,6 @@ import lombok.Getter;
 @AllArgsConstructor
 @Getter
 public class ImageType {
-    private String name;
     private int height;
     private int width;
     private int quality;
