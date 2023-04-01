@@ -30,6 +30,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Arrays;
 import java.util.Map;
 
 
@@ -69,30 +70,7 @@ public class ImageService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, msg);
         }
 
-        // found image in S3 - return it
-        byte[] image = getImageFromS3(type, filename);
-        if (image.length != 0) {
-            return image;
-        }
-
-        // attempt to get original image from S3
-        image = getImageFromS3("original", filename);
-        if (image.length != 0) {
-            // fixme
-            //optimize
-            // store
-        }
-
-        // didn't find image in source - return error
-        image = getImageFromSource(filename);
-        if (image.length == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Image not found on source");
-        }
-
-        // found image in source - store it
-        storeImage(type, filename, image);
-
-        return getImage(type, filename);
+        return getAndStoreS3(type, filename);
     }
 
     /**
@@ -117,6 +95,31 @@ public class ImageService {
         return new byte[0];
     }
 
+    public byte[] getAndStoreS3(String type, String filename) {
+        byte [] image = getImageFromS3(type, filename);
+
+        if (image.length == 0) {
+            if (type.equalsIgnoreCase("original")) {
+                image = getImageFromSource(filename);
+            } else {
+                image = getAndStoreS3("original", filename);
+//                image = compressImage(type, new ByteArrayInputStream(image));
+            }
+
+            // found image in source - store it
+            storeImage(type, filename, image);
+
+            // check that storing worked correctly
+            if (!Arrays.equals(image, getImageFromS3(type, filename))) {
+                log.error("Failed to get image from S3");
+                dbLog.error("Failed to get image from S3");
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Image not found on source");
+            }
+        }
+
+        return image;
+    }
+
     /**
      * Get image from source
      *
@@ -137,8 +140,8 @@ public class ImageService {
         } catch (IOException e) {
             dbLog.info("Failed to get image from source");
             log.info("Failed to get image from source");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Image not found on source");
         }
-        return null;
     }
 
     /**
@@ -176,22 +179,28 @@ public class ImageService {
         }
     }
 
-    private void compressImage(String type, InputStream is) throws IOException {
+    private byte[] compressImage(String type, InputStream is) {
         ImageType imageType = imageTypes.get(type);
         ImageWriter writer = ImageIO.getImageWritersByFormatName(imageType.getType().name()).next();
         ImageWriteParam param = writer.getDefaultWriteParam();
-        BufferedImage image = ImageIO.read(is);
 
-        File compressedImageFile = new File("compressed_image.jpg");
-        OutputStream os = new FileOutputStream(compressedImageFile);
-        ImageOutputStream ios = ImageIO.createImageOutputStream(os);
+        try {
+            BufferedImage image = ImageIO.read(is);
+            File compressedImageFile = new File("compressed_image.jpg");
+            OutputStream os = new FileOutputStream(compressedImageFile);
+            ImageOutputStream ios = ImageIO.createImageOutputStream(os);
 
-        writer.setOutput(ios);
-        param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-        param.setCompressionQuality(imageType.getQuality());
-        writer.write(null, new IIOImage(image, null, null), param);
+            writer.setOutput(ios);
+            param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+            param.setCompressionQuality(imageType.getQuality());
+            writer.write(null, new IIOImage(image, null, null), param);
 
+            // todo
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Failed to compress image");
+        }
 
+        return null;
     }
 
     @Autowired
