@@ -9,6 +9,7 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.debijenkorf.assignment.app.configuration.S3Properties;
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,8 +22,10 @@ import java.io.InputStream;
  * A service responsible for the communication with S3
  */
 @Service
-public class S3Service {
+@Slf4j
+public class S3Service implements StorageService {
     private S3Properties s3Properties;
+    private DbLogger dbLog;
     private AmazonS3 s3client;
 
     /**
@@ -44,6 +47,7 @@ public class S3Service {
      * @param path The file path we want to download
      * @return InputStream of the file we have downloaded
      */
+    @Override
     public InputStream download(String path) {
         S3Object object = s3client.getObject(s3Properties.getBucket(), path);
         return object.getObjectContent();
@@ -55,7 +59,8 @@ public class S3Service {
      * @param path The location we want to upload the file to
      * @param is   InputStream that we want to upload
      */
-    public void upload(String path, InputStream is) {
+    @Override
+    public void upload(String path, InputStream is) throws IOException {
         try {
             byte[] resultByte = DigestUtils.md5(is);
             String streamMD5 = new String(Base64.encodeBase64(resultByte));
@@ -63,7 +68,11 @@ public class S3Service {
             metaData.setContentMD5(streamMD5);
             s3client.putObject(s3Properties.getBucket(), path, is, metaData);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            String msg = "Failed to upload file to S3";
+            dbLog.error(msg);
+            log.error(msg + ": {}", e.getMessage());
+            log.debug(msg);
+            throw e;
         }
     }
 
@@ -72,6 +81,7 @@ public class S3Service {
      *
      * @param path The file path we want to delete
      */
+    @Override
     public void delete(String path) {
         s3client.deleteObject(s3Properties.getBucket(), path);
     }
@@ -79,5 +89,10 @@ public class S3Service {
     @Autowired
     public void setS3Properties(S3Properties s3Properties) {
         this.s3Properties = s3Properties;
+    }
+
+    @Autowired
+    public void setDbLog(DbLogger dbLog) {
+        this.dbLog = dbLog;
     }
 }

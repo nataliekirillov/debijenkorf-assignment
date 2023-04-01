@@ -7,6 +7,7 @@ import com.debijenkorf.assignment.enums.ImageTypeEnum;
 import com.debijenkorf.assignment.enums.ScaleTypeEnum;
 import com.debijenkorf.assignment.strategy.S3DirectoryStrategy;
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -17,19 +18,18 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
-import static javax.ws.rs.core.Response.Status.NOT_FOUND;
 
 /**
  * A service responsible for the retrieval of images
  */
 @Service
+@Slf4j
 public class ImageService {
-    private Logger log;
+    private DbLogger dbLog;
     private S3Service s3Service;
     private SourceProperties sourceProperties;
     private S3DirectoryStrategy directoryStrategy;
@@ -44,13 +44,22 @@ public class ImageService {
         );
     }
 
+    /**
+     * Return an image to the user
+     *
+     * @param type     Definition type
+     * @param filename File path
+     * @return Requested image
+     */
     public byte[] getImage(String type, String filename) {
         if (!isTypeSupported(type)) {
-            log.info("No predefined type: " + type);
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No predefined type: " + type);
+            String msg = "No predefined type: " + type;
+            dbLog.info(msg);
+            log.info(msg);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, msg);
         }
 
-        return getImageFromS3(type, filename);
+        return getImageFromSource();
     }
 
     /**
@@ -79,21 +88,36 @@ public class ImageService {
         HttpGet request = new HttpGet(sourceProperties.getRootUrl());
 
         try (CloseableHttpResponse response = httpClient.execute(request)) {
+            int statusCode = response.getStatusLine().getStatusCode();
+            if (statusCode == 404 || statusCode > 500) {
+                dbLog.error("Source URL responded with: " + statusCode);
+                log.error("Source URL responded with: {}", statusCode);
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Failed to get image from source");
+            }
             return IOUtils.toByteArray(response.getEntity().getContent());
         } catch (IOException e) {
-            log.error("Failed to get image from source");
+            dbLog.info("Failed to get image from source");
+            log.info("Failed to get image from source");
         }
-
         return null;
     }
 
+    /**
+     * Flush an image from S3
+     *
+     * @param type     Definition type
+     * @param filename File path
+     */
     public void flushImage(String type, String filename) {
         String s3FilePath = directoryStrategy.getDirectoryStrategy(type, filename);
 
         try {
             s3Service.delete(s3FilePath);
         } catch (AmazonS3Exception e) {
-            log.error("Failed to delete file");
+            String msg = "Failed to delete file";
+            dbLog.error(msg);
+            log.error(msg + ": {}", e.getMessage());
+            log.debug(msg, e.getMessage());
         }
     }
 
@@ -112,8 +136,8 @@ public class ImageService {
     }
 
     @Autowired
-    public void setLog(Logger log) {
-        this.log = log;
+    public void setDbLog(DbLogger dbLog) {
+        this.dbLog = dbLog;
     }
 
     @Autowired

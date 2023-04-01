@@ -6,7 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
-public class Logger {
+public class DbLogger {
     private LogDBRepository logRepository;
 
     public void info(String message) {

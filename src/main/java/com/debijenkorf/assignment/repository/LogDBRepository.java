@@ -1,6 +1,7 @@
 package com.debijenkorf.assignment.repository;
 
 import com.debijenkorf.assignment.app.configuration.LogDBProperties;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
@@ -13,6 +14,7 @@ import java.sql.SQLException;
  * A repository responsible for the logging table
  */
 @Repository
+@Slf4j
 public class LogDBRepository {
     private LogDBProperties logDBProperties;
 
@@ -32,10 +34,11 @@ public class LogDBRepository {
 
             int row = ps.executeUpdate();
             if (row != 1) {
-                // failed to log
+                log.error("Failed to insert row to db_logs");
             }
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            log.error("Failed to insert row to db_logs: {}", e.getMessage());
+            log.debug("Failed to insert row to db_logs", e);
         }
     }
 
@@ -44,16 +47,16 @@ public class LogDBRepository {
      *
      * @return Database connection
      */
-    public Connection getConnection() {
+    public Connection getConnection() throws SQLException {
         String url = String.join("/", logDBProperties.getEndpoint(), logDBProperties.getName());
 
         try {
             return DriverManager.getConnection(url, logDBProperties.getUsername(), logDBProperties.getPassword());
         } catch (SQLException e) {
-
+            log.error("Failed to get DB connection: {}", e.getMessage());
+            log.debug("Failed to get DB connection", e);
+            throw e;
         }
-
-        return null;
     }
 
     @Autowired
