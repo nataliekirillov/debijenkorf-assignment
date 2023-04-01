@@ -23,7 +23,7 @@ public class LogDBRepository {
      * @param message Message to log
      */
     public void insert(String level, String message) {
-        String query = "insert into [db_logs] (timestamp, level, message) values (?,?,?)";
+        String query = "insert into db_logs (timestamp, level, message) values (?,?,?)";
 
         try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(query)) {
             ps.setLong(1, System.currentTimeMillis());
@@ -45,7 +45,7 @@ public class LogDBRepository {
      * @return Database connection
      */
     public Connection getConnection() {
-        String url = String.join(logDBProperties.getEndpoint(), logDBProperties.getName());
+        String url = String.join("/", logDBProperties.getEndpoint(), logDBProperties.getName());
 
         try {
             return DriverManager.getConnection(url, logDBProperties.getUsername(), logDBProperties.getPassword());

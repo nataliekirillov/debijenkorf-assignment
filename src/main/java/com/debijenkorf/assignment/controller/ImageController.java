@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import com.debijenkorf.assignment.service.ImageService;
 
+
 @Controller
 public class ImageController {
     private ImageService imageService;
@@ -16,7 +17,7 @@ public class ImageController {
     @GetMapping(value="image/show/{type}/{dummySeo}/", produces="image/jpeg")
     @ResponseBody
     public byte[] getImage(@PathVariable("type") String type, @PathVariable("dummySeo") String dummySeo,
-                           @RequestParam("reference") String filename) {
+                             @RequestParam("reference") String filename) {
         return imageService.getImage(type, filename);
     }
 

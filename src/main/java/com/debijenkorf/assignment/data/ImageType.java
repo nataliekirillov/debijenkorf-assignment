@@ -2,10 +2,13 @@ package com.debijenkorf.assignment.data;
 
 import com.debijenkorf.assignment.enums.ScaleTypeEnum;
 import com.debijenkorf.assignment.enums.ImageTypeEnum;
-import org.springframework.context.annotation.Configuration;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 
-@Configuration
+@AllArgsConstructor
+@Getter
 public class ImageType {
+    private String name;
     private int height;
     private int width;
     private int quality;
