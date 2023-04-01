@@ -18,15 +18,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Map;
+
+import static com.debijenkorf.assignment.util.ImageUtil.toBufferedImage;
+import static com.debijenkorf.assignment.util.ImageUtil.toByteArray;
 
 
 /**
@@ -35,6 +36,8 @@ import java.util.Map;
 @Service
 @Slf4j
 public class ImageService {
+    private static final String DEFAULT_IMAGE_TYPE = "original";
+
     private DbLogger dbLog;
     private S3Service s3Service;
     private SourceProperties sourceProperties;
@@ -45,8 +48,12 @@ public class ImageService {
     @PostConstruct
     public void postConstruct() {
         this.imageTypes = Map.of(
-                "thumbnail", new ImageType(250, 250, 90, "#FFFFFF", ImageTypeEnum.JPG, ScaleTypeEnum.FILL),
-                "original", new ImageType(0, 0, 100, "#FFFFFF", ImageTypeEnum.JPG, ScaleTypeEnum.FILL)
+                "thumbnail", new ImageType(100, 100, 90, "#ff0000", ImageTypeEnum.JPG, ScaleTypeEnum.FILL),
+                "fill", new ImageType(100, 100, 90, "#ff0000", ImageTypeEnum.JPG, ScaleTypeEnum.FILL),
+                "crop", new ImageType(1000, 1000, 90, "#ff0000", ImageTypeEnum.JPG, ScaleTypeEnum.CROP),
+                "skew", new ImageType(100, 100, 90, "#ff0000", ImageTypeEnum.JPG, ScaleTypeEnum.SKEW),
+                "skew-high", new ImageType(300, 100, 90, "#ff0000", ImageTypeEnum.JPG, ScaleTypeEnum.SKEW),
+                DEFAULT_IMAGE_TYPE, new ImageType(0, 0, 100, "#FFFFFF", ImageTypeEnum.JPG, ScaleTypeEnum.FILL)
         );
     }
 
@@ -94,10 +101,10 @@ public class ImageService {
         byte [] image = getImageFromS3(type, filename);
 
         if (image.length == 0) {
-            if (type.equalsIgnoreCase("original")) {
+            if (type.equalsIgnoreCase(DEFAULT_IMAGE_TYPE)) {
                 image = getImageFromSource(filename);
             } else {
-                image = getAndStoreS3("original", filename);
+                image = getAndStoreS3(DEFAULT_IMAGE_TYPE, filename);
                 image = resizeImage(type, image);
             }
 
@@ -146,7 +153,7 @@ public class ImageService {
      * @param filename File path
      */
     public void flushImage(String type, String filename) {
-        if (!type.equalsIgnoreCase("original")) {
+        if (!type.equalsIgnoreCase(DEFAULT_IMAGE_TYPE)) {
             deleteImage(type, filename);
             return;
         }
@@ -183,32 +190,63 @@ public class ImageService {
         }
     }
 
-    // convert BufferedImage to byte[]
-    public static byte[] toByteArray(BufferedImage bi, String format) throws IOException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        ImageIO.write(bi, format, baos);
-        return baos.toByteArray();
-    }
-
-    // convert byte[] to BufferedImage
-    public static BufferedImage toBufferedImage(byte[] bytes) throws IOException {
-        InputStream is = new ByteArrayInputStream(bytes);
-        return ImageIO.read(is);
-    }
-
     private byte[] resizeImage(String type, byte[] image) {
         ImageType imageType = imageTypes.get(type.toLowerCase());
 
-        BufferedImage originalImage = null;
         try {
-            originalImage = toBufferedImage(image);
-            Image resultingImage = originalImage.getScaledInstance(imageType.getWidth(), imageType.getHeight(), Image.SCALE_DEFAULT);
-            BufferedImage outputImage = new BufferedImage(imageType.getWidth(), imageType.getHeight(), BufferedImage.TYPE_INT_RGB);
-            outputImage.getGraphics().drawImage(resultingImage, 0, 0, null);
-            return toByteArray(outputImage, imageType.getType().toString());
+            Image resultingImage = getResultingImage(imageType, toBufferedImage(image));
+
+            BufferedImage target = new BufferedImage(imageType.getWidth(), imageType.getHeight(),
+                    BufferedImage.TYPE_INT_RGB);
+
+            int widthBuffer = Math.abs((resultingImage.getWidth(null) - target.getWidth()) / 2);
+            int heightBuffer = Math.abs((resultingImage.getHeight(null) - target.getHeight()) / 2);
+
+            Graphics2D graphics = target.createGraphics();
+
+            switch (imageType.getScaleType()) {
+                case CROP -> graphics.drawImage(resultingImage, 0, 0, target.getWidth(), target.getHeight(),
+                        widthBuffer, heightBuffer, resultingImage.getWidth(null) - widthBuffer,
+                        resultingImage.getHeight(null) - heightBuffer, null);
+                case FILL -> graphics.drawImage(resultingImage, widthBuffer, heightBuffer,
+                        target.getWidth() - widthBuffer, target.getHeight() - heightBuffer, 0, 0,
+                        resultingImage.getWidth(null), resultingImage.getHeight(null),
+                        Color.decode(imageType.getFillColor()), null);
+                case SKEW -> graphics.drawImage(resultingImage, 0, 0, target.getWidth(), target.getHeight(), 0, 0,
+                        resultingImage.getWidth(null), resultingImage.getHeight(null), null);
+            }
+
+            return toByteArray(target, imageType.getType().toString());
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            String msg = "Failed to resize image";
+            log.error(msg + ": {}", e.getMessage());
+            log.debug(msg, e);
+            dbLog.error(msg);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, msg);
         }
+    }
+
+    public Image getResultingImage(ImageType imageType, BufferedImage origin) {
+        Image resultingImage;
+
+        boolean wider = (imageType.getWidth() / (double) imageType.getHeight()) >= (origin.getWidth() / (double) origin.getHeight());
+        boolean crop = imageType.getScaleType().equals(ScaleTypeEnum.CROP);
+        boolean fill = imageType.getScaleType().equals(ScaleTypeEnum.FILL);
+
+        if ((crop && wider) || (fill && !wider)) {
+            // CROP && WIDER - keep the ratio and match the width
+            // FILL && HIGHER - keep the ratio and match the width
+            resultingImage = origin.getScaledInstance(imageType.getWidth(), -1, Image.SCALE_DEFAULT);
+        } else if (crop || fill) {
+            // CROP && HIGHER - keep the ratio and match the height
+            // FILL && WIDER - keep the ratio and match the height
+            resultingImage = origin.getScaledInstance(-1, imageType.getHeight(), Image.SCALE_DEFAULT);
+        } else {
+            // SKEW - fits the original image to the requested width and height
+            resultingImage = origin.getScaledInstance(imageType.getWidth(), imageType.getHeight(), Image.SCALE_DEFAULT);
+        }
+
+        return resultingImage;
     }
 
     @Autowired
