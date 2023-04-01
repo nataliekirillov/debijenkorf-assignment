@@ -18,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
@@ -59,7 +60,30 @@ public class ImageService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, msg);
         }
 
-        return getImageFromSource();
+        // found image in S3 - return it
+        byte[] image = getImageFromS3(type, filename);
+        if (image.length != 0) {
+            return image;
+        }
+
+        // didn't find image in source - return error
+        image = getImageFromSource(filename);
+        if (image.length == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Image not found on source");
+        }
+
+        // found image in source - store it
+        String s3Filepath = directoryStrategy.getDirectoryStrategy(type, filename);
+        try {
+            s3Service.upload(s3Filepath, new ByteArrayInputStream(image));
+        } catch (IOException e) {
+            dbLog.error("Failed to save image to S3");
+            log.error("Failed to save image to S3: {}", e.getMessage());
+            log.debug("Failed to save image to S3", e);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Failed to store image on S3");
+        }
+
+        return getImage(type, filename);
     }
 
     /**
@@ -68,15 +92,20 @@ public class ImageService {
      * @return byte[] representing image file from S3
      */
     public byte[] getImageFromS3(String type, String filename) {
-        String s3FilePath = directoryStrategy.getDirectoryStrategy(type, filename);
+        String s3Filepath = directoryStrategy.getDirectoryStrategy(type, filename);
         try {
-            InputStream is = s3Service.download(s3FilePath);
+            InputStream is = s3Service.download(s3Filepath);
             return IOUtils.toByteArray(is);
         } catch (AmazonS3Exception e) {
-            throw new RuntimeException(e);
+            log.info("File not found in S3");
+            dbLog.info("File not found in S3");
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            log.error("Failed to get file from S3: {}", e.getMessage());
+            log.debug("Failed to get file from S3", e);
+            dbLog.error("Failed to get file from S3");
         }
+
+        return new byte[0];
     }
 
     /**
@@ -84,17 +113,18 @@ public class ImageService {
      *
      * @return byte[] representing image file from source
      */
-    public byte[] getImageFromSource() {
-        HttpGet request = new HttpGet(sourceProperties.getRootUrl());
+    public byte[] getImageFromSource(String filename) {
+        HttpGet request = new HttpGet(String.join("/", sourceProperties.getRootUrl(), filename));
 
         try (CloseableHttpResponse response = httpClient.execute(request)) {
             int statusCode = response.getStatusLine().getStatusCode();
             if (statusCode == 404 || statusCode > 500) {
                 dbLog.error("Source URL responded with: " + statusCode);
                 log.error("Source URL responded with: {}", statusCode);
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Failed to get image from source");
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Source server error: failed to get image from source");
             }
-            return IOUtils.toByteArray(response.getEntity().getContent());
+            return response.getEntity().getContent().readAllBytes();
         } catch (IOException e) {
             dbLog.info("Failed to get image from source");
             log.info("Failed to get image from source");
@@ -109,15 +139,15 @@ public class ImageService {
      * @param filename File path
      */
     public void flushImage(String type, String filename) {
-        String s3FilePath = directoryStrategy.getDirectoryStrategy(type, filename);
+        String s3Filepath = directoryStrategy.getDirectoryStrategy(type, filename);
 
         try {
-            s3Service.delete(s3FilePath);
+            s3Service.delete(s3Filepath);
         } catch (AmazonS3Exception e) {
             String msg = "Failed to delete file";
             dbLog.error(msg);
             log.error(msg + ": {}", e.getMessage());
-            log.debug(msg, e.getMessage());
+            log.debug(msg, e);
         }
     }
 

@@ -5,7 +5,9 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.debijenkorf.assignment.app.configuration.S3Properties;
 import jakarta.annotation.PostConstruct;
@@ -17,6 +19,8 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * A service responsible for the communication with S3
@@ -62,12 +66,10 @@ public class S3Service implements StorageService {
     @Override
     public void upload(String path, InputStream is) throws IOException {
         try {
-            byte[] resultByte = DigestUtils.md5(is);
-            String streamMD5 = new String(Base64.encodeBase64(resultByte));
             ObjectMetadata metaData = new ObjectMetadata();
-            metaData.setContentMD5(streamMD5);
-            s3client.putObject(s3Properties.getBucket(), path, is, metaData);
-        } catch (IOException e) {
+            PutObjectRequest putOb = new PutObjectRequest(s3Properties.getBucket(), path, is, metaData);
+            s3client.putObject(putOb);
+        } catch (AmazonS3Exception e) {
             String msg = "Failed to upload file to S3";
             dbLog.error(msg);
             log.error(msg + ": {}", e.getMessage());
