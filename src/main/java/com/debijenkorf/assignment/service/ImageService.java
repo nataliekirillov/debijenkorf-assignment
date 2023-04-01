@@ -84,8 +84,8 @@ public class ImageService {
             InputStream is = s3Service.download(s3Filepath);
             return IOUtils.toByteArray(is);
         } catch (AmazonS3Exception e) {
-            log.info("File not found in S3");
-            dbLog.info("File not found in S3");
+            log.info("File not found in S3: {}", filename);
+            dbLog.info("File not found in S3: " + filename);
         } catch (IOException e) {
             log.error("Failed to get file from S3: {}", e.getMessage());
             log.debug("Failed to get file from S3", e);
@@ -151,6 +151,15 @@ public class ImageService {
      * @param filename File path
      */
     public void flushImage(String type, String filename) {
+        if (!type.equalsIgnoreCase("original")) {
+            deleteImage(type, filename);
+            return;
+        }
+
+        imageTypes.keySet().forEach(x -> deleteImage(x, filename));
+    }
+
+    private void deleteImage(String type, String filename) {
         String s3Filepath = directoryStrategy.getDirectoryStrategy(type, filename);
 
         try {
@@ -171,7 +180,7 @@ public class ImageService {
         String s3Filepath = directoryStrategy.getDirectoryStrategy(type, filename);
         try {
             s3Service.upload(s3Filepath, new ByteArrayInputStream(image));
-        } catch (IOException e) {
+        } catch (AmazonS3Exception e) {
             dbLog.error("Failed to save image to S3");
             log.error("Failed to save image to S3: {}", e.getMessage());
             log.debug("Failed to save image to S3", e);

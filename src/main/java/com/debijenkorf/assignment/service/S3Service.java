@@ -60,18 +60,10 @@ public class S3Service implements StorageService {
      * @param is   InputStream that we want to upload
      */
     @Override
-    public void upload(String path, InputStream is) throws IOException {
-        try {
-            ObjectMetadata metaData = new ObjectMetadata();
-            PutObjectRequest putOb = new PutObjectRequest(s3Properties.getBucket(), path, is, metaData);
-            s3client.putObject(putOb);
-        } catch (AmazonS3Exception e) {
-            String msg = "Failed to upload file to S3";
-            dbLog.error(msg);
-            log.error(msg + ": {}", e.getMessage());
-            log.debug(msg);
-            throw e;
-        }
+    public void upload(String path, InputStream is) {
+        ObjectMetadata metaData = new ObjectMetadata();
+        PutObjectRequest putOb = new PutObjectRequest(s3Properties.getBucket(), path, is, metaData);
+        s3client.putObject(putOb);
     }
 
     /**
