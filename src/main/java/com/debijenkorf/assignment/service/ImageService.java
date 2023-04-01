@@ -18,18 +18,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
-import javax.imageio.ImageWriteParam;
-import javax.imageio.ImageWriter;
-import javax.imageio.stream.ImageOutputStream;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -50,8 +45,8 @@ public class ImageService {
     @PostConstruct
     public void postConstruct() {
         this.imageTypes = Map.of(
-                "Thumbnail", new ImageType(5, 5, 90, "#FFFFFF", ImageTypeEnum.JPG, ScaleTypeEnum.FILL),
-                "Original", new ImageType(0, 0, 100, "#FFFFFF", ImageTypeEnum.JPG, ScaleTypeEnum.FILL)
+                "thumbnail", new ImageType(250, 250, 90, "#FFFFFF", ImageTypeEnum.JPG, ScaleTypeEnum.FILL),
+                "original", new ImageType(0, 0, 100, "#FFFFFF", ImageTypeEnum.JPG, ScaleTypeEnum.FILL)
         );
     }
 
@@ -103,7 +98,7 @@ public class ImageService {
                 image = getImageFromSource(filename);
             } else {
                 image = getAndStoreS3("original", filename);
-//                image = compressImage(type, new ByteArrayInputStream(image));
+                image = resizeImage(type, image);
             }
 
             // found image in source - store it
@@ -188,28 +183,32 @@ public class ImageService {
         }
     }
 
-    private byte[] compressImage(String type, InputStream is) {
-        ImageType imageType = imageTypes.get(type);
-        ImageWriter writer = ImageIO.getImageWritersByFormatName(imageType.getType().name()).next();
-        ImageWriteParam param = writer.getDefaultWriteParam();
+    // convert BufferedImage to byte[]
+    public static byte[] toByteArray(BufferedImage bi, String format) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ImageIO.write(bi, format, baos);
+        return baos.toByteArray();
+    }
 
+    // convert byte[] to BufferedImage
+    public static BufferedImage toBufferedImage(byte[] bytes) throws IOException {
+        InputStream is = new ByteArrayInputStream(bytes);
+        return ImageIO.read(is);
+    }
+
+    private byte[] resizeImage(String type, byte[] image) {
+        ImageType imageType = imageTypes.get(type.toLowerCase());
+
+        BufferedImage originalImage = null;
         try {
-            BufferedImage image = ImageIO.read(is);
-            File compressedImageFile = new File("compressed_image.jpg");
-            OutputStream os = new FileOutputStream(compressedImageFile);
-            ImageOutputStream ios = ImageIO.createImageOutputStream(os);
-
-            writer.setOutput(ios);
-            param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-            param.setCompressionQuality(imageType.getQuality());
-            writer.write(null, new IIOImage(image, null, null), param);
-
-            // todo
+            originalImage = toBufferedImage(image);
+            Image resultingImage = originalImage.getScaledInstance(imageType.getWidth(), imageType.getHeight(), Image.SCALE_DEFAULT);
+            BufferedImage outputImage = new BufferedImage(imageType.getWidth(), imageType.getHeight(), BufferedImage.TYPE_INT_RGB);
+            outputImage.getGraphics().drawImage(resultingImage, 0, 0, null);
+            return toByteArray(outputImage, imageType.getType().toString());
         } catch (IOException e) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Failed to compress image");
+            throw new RuntimeException(e);
         }
-
-        return null;
     }
 
     @Autowired
