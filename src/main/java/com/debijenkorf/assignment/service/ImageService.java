@@ -48,11 +48,13 @@ public class ImageService {
     @PostConstruct
     public void postConstruct() {
         this.imageTypes = Map.of(
-                "thumbnail", new ImageType(100, 100, 90, "#ff0000", ImageTypeEnum.JPG, ScaleTypeEnum.FILL),
-                "fill", new ImageType(100, 100, 90, "#ff0000", ImageTypeEnum.JPG, ScaleTypeEnum.FILL),
-                "crop", new ImageType(1000, 1000, 90, "#ff0000", ImageTypeEnum.JPG, ScaleTypeEnum.CROP),
-                "skew", new ImageType(100, 100, 90, "#ff0000", ImageTypeEnum.JPG, ScaleTypeEnum.SKEW),
-                "skew-high", new ImageType(300, 100, 90, "#ff0000", ImageTypeEnum.JPG, ScaleTypeEnum.SKEW),
+                "thumbnail", new ImageType(100, 100, 90, "#FF0000", ImageTypeEnum.JPG, ScaleTypeEnum.FILL),
+                "fill-red", new ImageType(100, 100, 90, "#FF0000", ImageTypeEnum.JPG, ScaleTypeEnum.FILL),
+                "fill-green", new ImageType(100, 100, 90, "#00FF00", ImageTypeEnum.JPG, ScaleTypeEnum.FILL),
+                "fill-blue", new ImageType(100, 100, 90, "#0000FF", ImageTypeEnum.JPG, ScaleTypeEnum.FILL),
+                "crop", new ImageType(1000, 1000, 90, "#FFFFFF", ImageTypeEnum.JPG, ScaleTypeEnum.CROP),
+                "skew", new ImageType(100, 100, 90, "#000000", ImageTypeEnum.JPG, ScaleTypeEnum.SKEW),
+                "skew-high", new ImageType(300, 100, 90, "#FF0000", ImageTypeEnum.JPG, ScaleTypeEnum.SKEW),
                 DEFAULT_IMAGE_TYPE, new ImageType(0, 0, 100, "#FFFFFF", ImageTypeEnum.JPG, ScaleTypeEnum.FILL)
         );
     }
@@ -208,10 +210,20 @@ public class ImageService {
                 case CROP -> graphics.drawImage(resultingImage, 0, 0, target.getWidth(), target.getHeight(),
                         widthBuffer, heightBuffer, resultingImage.getWidth(null) - widthBuffer,
                         resultingImage.getHeight(null) - heightBuffer, null);
-                case FILL -> graphics.drawImage(resultingImage, widthBuffer, heightBuffer,
-                        target.getWidth() - widthBuffer, target.getHeight() - heightBuffer, 0, 0,
-                        resultingImage.getWidth(null), resultingImage.getHeight(null),
-                        Color.decode(imageType.getFillColor()), null);
+                case FILL -> {
+                    graphics.drawImage(resultingImage, widthBuffer, heightBuffer,
+                            target.getWidth() - widthBuffer, target.getHeight() - heightBuffer, 0, 0,
+                            resultingImage.getWidth(null), resultingImage.getHeight(null), null);
+                    graphics.setColor(Color.decode(imageType.getFillColor()));
+
+                    if (widthBuffer == 0) {
+                        graphics.fillRect(0, 0, target.getWidth(), heightBuffer);
+                        graphics.fillRect(0, target.getHeight() - heightBuffer, target.getWidth(), target.getHeight());
+                    } else {
+                        graphics.fillRect(0, 0, widthBuffer, target.getHeight());
+                        graphics.fillRect(target.getWidth() - widthBuffer, 0, target.getWidth(), target.getHeight());
+                    }
+                }
                 case SKEW -> graphics.drawImage(resultingImage, 0, 0, target.getWidth(), target.getHeight(), 0, 0,
                         resultingImage.getWidth(null), resultingImage.getHeight(null), null);
             }
