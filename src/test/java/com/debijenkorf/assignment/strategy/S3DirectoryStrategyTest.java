@@ -29,6 +29,8 @@ class S3DirectoryStrategyTest {
                 Arguments.of("thumbnail", "abcdefghij.jpg", "thumbnail/abcd/efgh/abcdefghij.jpg"),
                 Arguments.of("thumbnail", "abcde.jpg", "thumbnail/abcd/abcde.jpg"),
                 Arguments.of("thumbnail", "/somedir/anotherdir/abcdef.jpg",
+                        "thumbnail/_som/edir/_somedir_anotherdir_abcdef.jpg"),
+                Arguments.of("thumbnail", "%2Fsomedir%2Fanotherdir%2Fabcdef.jpg",
                         "thumbnail/_som/edir/_somedir_anotherdir_abcdef.jpg")
         );
     }

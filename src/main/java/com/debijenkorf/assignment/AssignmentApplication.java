@@ -1,8 +1,8 @@
 package com.debijenkorf.assignment;
 
-import com.debijenkorf.assignment.app.config.LogDBProperties;
-import com.debijenkorf.assignment.app.config.S3Properties;
-import com.debijenkorf.assignment.app.config.SourceProperties;
+import com.debijenkorf.assignment.app.configuration.LogDBProperties;
+import com.debijenkorf.assignment.app.configuration.S3Properties;
+import com.debijenkorf.assignment.app.configuration.SourceProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;

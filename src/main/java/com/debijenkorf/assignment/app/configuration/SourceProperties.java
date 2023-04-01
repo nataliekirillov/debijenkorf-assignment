@@ -1,4 +1,4 @@
-package com.debijenkorf.assignment.app.config;
+package com.debijenkorf.assignment.app.configuration;
 
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Value;

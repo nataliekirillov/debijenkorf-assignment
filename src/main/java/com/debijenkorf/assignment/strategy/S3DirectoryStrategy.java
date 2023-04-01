@@ -16,17 +16,17 @@ public class S3DirectoryStrategy implements DirectoryStrategy {
     @Override
     public String getDirectoryStrategy(String typeName, String filename) {
         String filenameNoExt = FilenameUtils.removeExtension(filename);
-        String filenameNoDelimiter = filename.replace(DELIMITER, "_");
-        String filenameNoExtNoDelimiter = filenameNoExt.replace(DELIMITER, "_");
+        String filenameNoDelimiter = filename.replace(DELIMITER, "_").replace("%2F", "_");
+        String filenameNoExtNoDelimiter = filenameNoExt.replace(DELIMITER, "_").replace("%2F", "_");
 
-        int length = filenameNoExt.length();
+        int length = filenameNoExtNoDelimiter.length();
         if (length <= 4) {
             return String.join(DELIMITER, typeName, filenameNoDelimiter);
         } else if (length <= 8) {
             return String.join(DELIMITER, typeName, getFirstDirectory(filenameNoExtNoDelimiter), filenameNoDelimiter);
         } else {
             return String.join(DELIMITER, typeName, getFirstDirectory(filenameNoExtNoDelimiter),
-                    getSecondDirectory(filenameNoExt), filenameNoDelimiter);
+                    getSecondDirectory(filenameNoExtNoDelimiter), filenameNoDelimiter);
         }
     }
 

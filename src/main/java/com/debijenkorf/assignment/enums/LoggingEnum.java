@@ -1,6 +1,6 @@
 package com.debijenkorf.assignment.enums;
 
-public enum LogEnum {
+public enum LoggingEnum {
     INFO,
     WARN,
     ERROR,

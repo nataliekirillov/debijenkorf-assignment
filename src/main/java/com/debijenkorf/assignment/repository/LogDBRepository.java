@@ -1,6 +1,6 @@
 package com.debijenkorf.assignment.repository;
 
-import com.debijenkorf.assignment.app.config.LogDBProperties;
+import com.debijenkorf.assignment.app.configuration.LogDBProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
@@ -13,7 +13,7 @@ import java.sql.SQLException;
  * A repository responsible for the logging table
  */
 @Repository
-public class LogRepository {
+public class LogDBRepository {
     private LogDBProperties logDBProperties;
 
     /**

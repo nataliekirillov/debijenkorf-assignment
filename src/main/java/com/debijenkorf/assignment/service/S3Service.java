@@ -7,7 +7,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
-import com.debijenkorf.assignment.app.config.S3Properties;
+import com.debijenkorf.assignment.app.configuration.S3Properties;
 import jakarta.annotation.PostConstruct;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.codec.digest.DigestUtils;
@@ -21,9 +21,9 @@ import java.io.InputStream;
  * A service responsible for the communication with S3
  */
 @Service
-public class AmazonS3Service {
+public class S3Service {
     private S3Properties s3Properties;
-    private AmazonS3 client;
+    private AmazonS3 s3client;
 
     /**
      * Establish the S3 Client connection after the bean has initialized
@@ -31,7 +31,7 @@ public class AmazonS3Service {
     @PostConstruct
     public void postConstruct() {
         AWSCredentials credentials = new BasicAWSCredentials(s3Properties.getAccessKey(), s3Properties.getSecretKey());
-        this.client = AmazonS3ClientBuilder
+        this.s3client = AmazonS3ClientBuilder
                 .standard()
                 .withCredentials(new AWSStaticCredentialsProvider(credentials))
                 .withRegion(s3Properties.getRegion())
@@ -39,32 +39,41 @@ public class AmazonS3Service {
     }
 
     /**
-     * Download file from S3
+     * Download file from S3 bucket
      *
      * @param path The file path we want to download
      * @return InputStream of the file we have downloaded
      */
-    public InputStream downloadFile(String path) {
-        S3Object object = client.getObject(s3Properties.getBucket(), path);
+    public InputStream download(String path) {
+        S3Object object = s3client.getObject(s3Properties.getBucket(), path);
         return object.getObjectContent();
     }
 
     /**
-     * Upload file to S3
+     * Upload file to S3 bucket
      *
      * @param path The location we want to upload the file to
      * @param is   InputStream that we want to upload
      */
-    public void uploadFile(String path, InputStream is) {
+    public void upload(String path, InputStream is) {
         try {
             byte[] resultByte = DigestUtils.md5(is);
             String streamMD5 = new String(Base64.encodeBase64(resultByte));
             ObjectMetadata metaData = new ObjectMetadata();
             metaData.setContentMD5(streamMD5);
-            client.putObject(s3Properties.getBucket(), path, is, metaData);
+            s3client.putObject(s3Properties.getBucket(), path, is, metaData);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Delete file from S3 bucket
+     *
+     * @param path The file path we want to delete
+     */
+    public void delete(String path) {
+        s3client.deleteObject(s3Properties.getBucket(), path);
     }
 
     @Autowired
