@@ -1,5 +1,6 @@
 package com.debijenkorf.assignment.service;
 
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.debijenkorf.assignment.app.configuration.SourceProperties;
 import com.debijenkorf.assignment.strategy.S3DirectoryStrategy;
 import org.apache.commons.io.IOUtils;
@@ -27,7 +28,7 @@ public class ImageService {
 
 
     public byte[] getImage(String type, String filename) {
-        return null;
+        return getImageFromS3(type, filename);
     }
 
     /**
@@ -35,10 +36,13 @@ public class ImageService {
      *
      * @return byte[] representing image file from S3
      */
-    public byte[] getImageFromS3() {
-        InputStream is = s3Service.download("abcd.jpg");
+    public byte[] getImageFromS3(String type, String filename) {
+        String s3FilePath = directoryStrategy.getDirectoryStrategy(type, filename);
         try {
+            InputStream is = s3Service.download(s3FilePath);
             return IOUtils.toByteArray(is);
+        } catch (AmazonS3Exception e) {
+            throw new RuntimeException(e);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -63,7 +67,12 @@ public class ImageService {
 
     public void flushImage(String type, String filename) {
         String s3FilePath = directoryStrategy.getDirectoryStrategy(type, filename);
-        s3Service.delete(s3FilePath);
+
+        try {
+            s3Service.delete(s3FilePath);
+        } catch (AmazonS3Exception e) {
+            log.error("Failed to delete file");
+        }
     }
 
     @Autowired

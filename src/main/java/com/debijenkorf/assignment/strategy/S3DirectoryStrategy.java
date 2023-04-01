@@ -1,7 +1,9 @@
 package com.debijenkorf.assignment.strategy;
 
 import org.apache.commons.io.FilenameUtils;
+import org.springframework.stereotype.Component;
 
+@Component
 public class S3DirectoryStrategy implements DirectoryStrategy {
     private static final int DIR_SIZE = 4;
     private static final String DELIMITER = "/";
